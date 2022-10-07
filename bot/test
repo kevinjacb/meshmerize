@@ -1,0 +1,130 @@
+/******************* WiFi Robot Remote Control Mode ********************/
+#include <ESP8266WiFi.h> 
+#include <ESP8266WebServer.h> 
+#include <ArduinoOTA.h>
+
+// connections for drive Motors
+int PWM_A = D1;
+int PWM_B = D2;
+int DIR_A = D3;
+int DIR_B = D4;
+
+const int buzPin = D5;      // set digital pin D5 as buzzer pin (use active buzzer)
+const int ledPin = D8;      // set digital pin D8 as LED pin (use super bright LED)
+const int wifiLedPin = D0;  // set digital pin D0 as indication, the LED turn on if NodeMCU connected to WiFi as STA mode
+
+String command;          // String to store app command state.
+int SPEED = 1023;        // 330 - 1023.
+int speed_Coeff = 3;
+
+ESP8266WebServer server(80);      // Create a webserver object that listens for HTTP request on port 80
+
+unsigned long previousMillis = 0;
+
+String sta_ssid = "";      // set Wifi networks you want to connect to
+String sta_password = "";  // set password for Wifi networks
+
+
+void setup(){
+  Serial.begin(115200);    // set up Serial library at 115200 bps
+  Serial.println();
+  Serial.println("WiFi Robot Remote Control Mode");
+  Serial.println("--------------------------------------");
+ 
+  pinMode(buzPin, OUTPUT);      // sets the buzzer pin as an Output
+  pinMode(ledPin, OUTPUT);      // sets the LED pin as an Output
+  pinMode(wifiLedPin, OUTPUT);  // sets the Wifi LED pin as an Output
+  digitalWrite(buzPin, LOW);
+  digitalWrite(ledPin, LOW);
+  digitalWrite(wifiLedPin, HIGH);
+    
+  // Set all the motor control pins to outputs
+  pinMode(PWM_A, OUTPUT);
+  pinMode(PWM_B, OUTPUT);
+  pinMode(DIR_A, OUTPUT);
+  pinMode(DIR_B, OUTPUT);
+  
+  // Turn off motors - Initial state
+  digitalWrite(DIR_A, LOW);
+  digitalWrite(DIR_B, LOW);
+  analogWrite(PWM_A, 0);
+  analogWrite(PWM_B, 0);
+
+  // set NodeMCU Wifi hostname based on chip mac address
+  String chip_id = String(ESP.getChipId(), HEX);
+  int i = chip_id.length()-4;
+  chip_id = chip_id.substring(i);
+  chip_id = "wificar-" + chip_id;
+  String hostname(chip_id);
+  
+  Serial.println();
+  Serial.println("Hostname: "+hostname);
+
+  // first, set NodeMCU as STA mode to connect with a Wifi network
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(sta_ssid.c_str(), sta_password.c_str());
+  Serial.println("");
+  Serial.print("Connecting to: ");
+  Serial.println(sta_ssid);
+  Serial.print("Password: ");
+  Serial.println(sta_password);
+
+  // try to connect with Wifi network about 10 seconds
+  unsigned long currentMillis = millis();
+  previousMillis = currentMillis;
+  while (WiFi.status() != WL_CONNECTED && currentMillis - previousMillis <= 10000) {
+    delay(500);
+    Serial.print(".");
+    currentMillis = millis();
+  }
+
+  // if failed to connect with Wifi network set NodeMCU as AP mode
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("");
+    Serial.println("WiFi-STA-Mode");
+    Serial.print("IP: ");
+    Serial.println(WiFi.localIP());
+    digitalWrite(wifiLedPin, LOW);    // Wifi LED on when connected to Wifi as STA mode
+    delay(3000);
+  } else {
+    WiFi.mode(WIFI_AP);
+    WiFi.softAP(hostname.c_str());
+    IPAddress myIP = WiFi.softAPIP();
+    Serial.println("");
+    Serial.println("WiFi failed connected to " + sta_ssid);
+    Serial.println("");
+    Serial.println("WiFi-AP-Mode");
+    Serial.print("AP IP address: ");
+    Serial.println(myIP);
+    digitalWrite(wifiLedPin, HIGH);   // Wifi LED off when status as AP mode
+    delay(3000);
+  }
+ 
+
+  server.on ( "/", HTTP_handleRoot );       // call the 'handleRoot' function when a client requests URI "/"
+  server.onNotFound ( HTTP_handleRoot );    // when a client requests an unknown URI (i.e. something other than "/"), call function "handleNotFound"
+  server.begin();                           // actually start the server
+  
+  ArduinoOTA.begin();                       // enable to receive update/uploade firmware via Wifi OTA
+}
+
+
+void loop() {
+    ArduinoOTA.handle();          // listen for update OTA request from clients
+    server.handleClient();        // listen for HTTP requests from clients
+    
+      command = server.arg("State");          // check HTPP request, if has arguments "State
+
+}
+
+void HTTP_handleRoot(){
+    server.send(200,"text/html","");
+    
+    if( server.hasArg("State")){
+        Serial.println(server.arg("State"));
+    }
+}
+
+void handleNotFound(){
+    server.send(404, "text/plain","404: Not found");
+}
