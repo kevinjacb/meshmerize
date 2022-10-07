@@ -27,6 +27,8 @@ void read_sensors();
 void stop();
 void left();
 void right();
+void sharpLeft();
+void sharpRight();
 void forward();
 void reverse();
 int status();
@@ -104,7 +106,8 @@ void PID()
             Serial.println(String(100));
             left();
             read_sensors();
-        } while (!sensor_reading[2]);
+            setError(sensor_reading);
+        } while (error);
         stop();
         break;
     case 101:
@@ -114,7 +117,8 @@ void PID()
             Serial.println(String(101));
             right();
             read_sensors();
-        } while (!sensor_reading[3]);
+            setError(sensor_reading);
+        } while (error);
         stop();
         break;
     case 102:
@@ -127,7 +131,8 @@ void PID()
             else
                 left();
             read_sensors();
-        } while (!sensor_reading[2] && !sensor_reading[3]);
+            setError(sensor_reading);
+        } while (error);
         stop();
         break;
     case 103:
@@ -141,6 +146,10 @@ void PID()
         int pwm1 = constrain(SPEED - pid, 0, 255),
             pwm2 = constrain(SPEED + pid, 0, 255);
         Serial.println(String(pwm1) + " " + String(pwm2));
+        if (pwm1 < 90)
+            pwm1 = 0;
+        if (pwm2 < 90)
+            pwm2 = 0;
         setSpeed(pwm1, pwm2);
         forward();
     }
@@ -156,7 +165,7 @@ void setError(int reading[sensor_count])
     */
 
     if (reading[0] && !reading[1] && !reading[2] && !reading[3] && !reading[4] && !reading[5])
-        error = 101;
+        error = 5;
     else if (reading[0] && reading[1] && !reading[2] && !reading[3] && !reading[4] && !reading[5])
         error = 4;
     else if (!reading[0] && reading[1] && !reading[2] && !reading[3] && !reading[4] && !reading[5])
@@ -176,7 +185,7 @@ void setError(int reading[sensor_count])
     else if (!reading[0] && !reading[1] && !reading[2] && !reading[3] && reading[4] && reading[5])
         error = -4;
     else if (!reading[0] && !reading[1] && !reading[2] && !reading[3] && !reading[4] && reading[5])
-        error = 100;
+        error = -5;
     else if (reading[0] && reading[1] && reading[2] && !reading[3] && !reading[4] && !reading[5])
         error = 100;
     else if (!reading[0] && !reading[1] && !reading[2] && reading[3] && reading[4] && reading[5])
@@ -211,7 +220,7 @@ void forward()
 void right()
 {
     setSpeed();
-    digitalWrite(dir_pin[0], HIGH);
+    digitalWrite(dir_pin[0], LOW);
     digitalWrite(dir_pin[1], LOW);
     digitalWrite(dir_pin[2], LOW);
     digitalWrite(dir_pin[3], HIGH);
@@ -222,10 +231,26 @@ void left()
     setSpeed();
     digitalWrite(dir_pin[0], LOW);
     digitalWrite(dir_pin[1], HIGH);
+    digitalWrite(dir_pin[2], LOW);
+    digitalWrite(dir_pin[3], LOW);
+}
+void sharpRight()
+{
+    setSpeed();
+    digitalWrite(dir_pin[0], HIGH);
+    digitalWrite(dir_pin[1], LOW);
+    digitalWrite(dir_pin[2], LOW);
+    digitalWrite(dir_pin[3], HIGH);
+}
+
+void sharpLeft()
+{
+    setSpeed();
+    digitalWrite(dir_pin[0], LOW);
+    digitalWrite(dir_pin[1], HIGH);
     digitalWrite(dir_pin[2], HIGH);
     digitalWrite(dir_pin[3], LOW);
 }
-
 void stop()
 {
     for (int i = 0; i < 4; i++)
