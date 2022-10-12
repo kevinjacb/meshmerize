@@ -1,14 +1,24 @@
+/*
+    ####### CONNECTIONS #########
+    control direction on l298N motor driver PINS: 4,5,6,7
+    pwm control PINS : 3,9
+
+    sensor PINS (from left to right) : A0, A1, A2, A3, A4, A5, 11, 12
+
+    */
+
 #include <Arduino.h>
 
 #define interrupt 2
 #define ledPin 13
 
 const int sensor_count = 8;
-int dir_pin[4] = {3, 5, 6, 9},
+int dir_pin[4] = {4, 5, 6, 7},
+    pwm_pin[2] = {3, 9},
     sensor_pin[sensor_count] = {A0, A1, A2, A3, A4, A5, 11, 12},
     condition = 0;
 
-int SPEED = 200, MAX_SPEED = 255, TURN_SPEED = 190;
+int SPEED = 150, MAX_SPEED = 200, TURN_SPEED = 120;
 // stores sensor readings
 int sensor_reading[sensor_count] = {0, 0, 0, 0, 0, 0, 0, 0},
     prev_reading[sensor_count] = {0, 0, 0, 0, 0, 0, 0, 0},
@@ -27,6 +37,7 @@ void setError(int sensor_reading[sensor_count] = sensor_reading);
 void PID();
 void readSensors();
 void indicate();
+void setSpeed(int pwm1 = SPEED, int pw2 = SPEED);
 
 void setup()
 {
@@ -34,12 +45,15 @@ void setup()
     for (int i = 0; i < 4; i++)
     {
         pinMode(dir_pin[i], OUTPUT);
-        analogWrite(dir_pin[i], 0);
+        digitalWrite(dir_pin[i], 0);
+    }
+    for (int i = 0; i < 2; i++)
+    {
+        pinMode(pwm_pin[i], OUTPUT);
+        analogWrite(pwm_pin[i], 0);
     }
     for (int i = 0; i < sensor_count; i++)
         pinMode(sensor_pin[i], INPUT);
-    pinMode(interrupt, INPUT_PULLUP);
-    attachInterrupt(digitalPinToInterrupt(interrupt), indicate, LOW);
     pinMode(ledPin, OUTPUT);
     digitalWrite(ledPin, LOW);
 }
@@ -90,13 +104,6 @@ void readSensors()
 102 -> u turn
 103 -> stop
 */
-}
-
-void indicate()
-{
-    digitalWrite(ledPin, HIGH);
-    delay(1000);
-    digitalWrite(ledPin, LOW);
 }
 
 void setError(int sensor_reading[sensor_count] = sensor_reading)
@@ -205,60 +212,71 @@ void PID()
         pid_i += error * ki;
         pid_d = (error - prev_error) * kd;
         int pid = pid_p + pid_i + pid_d;
-        forward(constrain(SPEED - pid, -MAX_SPEED, MAX_SPEED), constrain(SPEED + pid, -MAX_SPEED, MAX_SPEED));
+        forward(constrain(SPEED + pid, -MAX_SPEED, MAX_SPEED), constrain(SPEED - pid, -MAX_SPEED, MAX_SPEED));
     }
 }
 
+void setSpeed(int pwm1 = SPEED, int pwm2 = SPEED)
+{
+    analogWrite(pwm_pin[0], pwm1);
+    analogWrite(pwm_pin[1], pwm2);
+}
 void forward(int pwm1 = SPEED, int pwm2 = SPEED)
 {
     Serial.println(String(pwm1) + " " + String(pwm2));
+    setSpeed(abs(pwm1), abs(pwm2));
     if (pwm1 < 0)
     {
-        analogWrite(dir_pin[0], abs(pwm1));
-        analogWrite(dir_pin[1], 0);
+        digitalWrite(dir_pin[0], 1);
+        digitalWrite(dir_pin[1], 0);
     }
     else
     {
-        analogWrite(dir_pin[1], pwm1);
-        analogWrite(dir_pin[0], 0);
+        digitalWrite(dir_pin[1], 1);
+        digitalWrite(dir_pin[0], 0);
     }
     if (pwm2 >= 0)
     {
-        analogWrite(dir_pin[2], 0);
-        analogWrite(dir_pin[3], pwm2);
+        digitalWrite(dir_pin[2], 0);
+        digitalWrite(dir_pin[3], 1);
     }
     else
     {
 
-        analogWrite(dir_pin[3], 0);
-        analogWrite(dir_pin[2], abs(pwm2));
+        digitalWrite(dir_pin[3], 0);
+        digitalWrite(dir_pin[2], 1);
     }
 }
 void reverse()
 {
-    analogWrite(dir_pin[0], SPEED);
-    analogWrite(dir_pin[1], 0);
-    analogWrite(dir_pin[2], SPEED);
-    analogWrite(dir_pin[3], 0);
-}
-void sharpRight()
-{
-    analogWrite(dir_pin[0], 0);
-    analogWrite(dir_pin[1], TURN_SPEED);
-    analogWrite(dir_pin[2], TURN_SPEED);
-    analogWrite(dir_pin[3], 0);
+
+    setSpeed();
+    digitalWrite(dir_pin[0], 1);
+    digitalWrite(dir_pin[1], 0);
+    digitalWrite(dir_pin[2], 1);
+    digitalWrite(dir_pin[3], 0);
 }
 void sharpLeft()
 {
-    analogWrite(dir_pin[0], TURN_SPEED);
-    analogWrite(dir_pin[1], 0);
-    analogWrite(dir_pin[2], 0);
-    analogWrite(dir_pin[3], TURN_SPEED);
+
+    setSpeed(TURN_SPEED, TURN_SPEED);
+    digitalWrite(dir_pin[0], 0);
+    digitalWrite(dir_pin[1], 1);
+    digitalWrite(dir_pin[2], 1);
+    digitalWrite(dir_pin[3], 0);
+}
+void sharpRight()
+{
+    setSpeed(TURN_SPEED, TURN_SPEED);
+    digitalWrite(dir_pin[0], 1);
+    digitalWrite(dir_pin[1], 0);
+    digitalWrite(dir_pin[2], 0);
+    digitalWrite(dir_pin[3], 1);
 }
 void stop()
 {
-    analogWrite(dir_pin[0], 0);
-    analogWrite(dir_pin[1], 0);
-    analogWrite(dir_pin[2], 0);
-    analogWrite(dir_pin[3], 0);
+    digitalWrite(dir_pin[0], 0);
+    digitalWrite(dir_pin[1], 0);
+    digitalWrite(dir_pin[2], 0);
+    digitalWrite(dir_pin[3], 0);
 }
